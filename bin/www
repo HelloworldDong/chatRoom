@@ -1,0 +1,125 @@
+#!/usr/bin/env node
+
+/**
+ * Module dependencies.
+ */
+
+var app = require('../app');
+var debug = require('debug')('nodejs-passport:server');
+var http = require('http');
+var io = require('socket.io');
+var fs = require('fs');
+/**
+ * Get port from environment and store in Express.
+ */
+
+var port = normalizePort(process.env.PORT || '3000');
+app.set('port', port);
+
+/**
+ * Create HTTP server.
+ */
+
+var server = http.createServer(app);
+
+/**
+ * Listen on provided port, on all network interfaces.
+ */
+
+server.listen(port);
+server.on('error', onError);
+server.on('listening', onListening);
+
+/** 
+ * Listen on httpServer
+ * Establish websocket connection and handle request
+ * Edit by DongLiang 2018/3/12 17:52:52
+*/
+
+var ws = io.listen(server);
+ws.on('connection', function(client){
+  
+  //while join chatroom
+  client.on('join', function(msg){
+      client.nickname = msg;
+      ws.sockets.emit('announcement', new Date().toLocaleString(), msg + ' 加入了聊天室!');
+  });
+
+  // while send message
+  client.on('message', function(msg){
+      let time = new Date().toLocaleString();
+      ws.sockets.emit('message',time,client.nickname,msg);
+      fs.appendFile('log',`[${time}]${client.nickname}:${msg}\n\n`,function(err){
+        if(err)
+         console.log(err.toString());
+      });
+  });
+
+  // while disconnected
+  client.on('disconnect', function(){
+      if(client.nickname){
+          client.broadcast.emit('announcement',new Date().toLocaleString(), client.nickname + '离开了聊天室!');
+      }
+  })
+
+});
+
+/**
+ * Normalize a port into a number, string, or false.
+ */
+
+function normalizePort(val) {
+  var port = parseInt(val, 10);
+
+  if (isNaN(port)) {
+    // named pipe
+    return val;
+  }
+
+  if (port >= 0) {
+    // port number
+    return port;
+  }
+
+  return false;
+}
+
+/**
+ * Event listener for HTTP server "error" event.
+ */
+
+function onError(error) {
+  if (error.syscall !== 'listen') {
+    throw error;
+  }
+
+  var bind = typeof port === 'string'
+    ? 'Pipe ' + port
+    : 'Port ' + port;
+
+  // handle specific listen errors with friendly messages
+  switch (error.code) {
+    case 'EACCES':
+      console.error(bind + ' requires elevated privileges');
+      process.exit(1);
+      break;
+    case 'EADDRINUSE':
+      console.error(bind + ' is already in use');
+      process.exit(1);
+      break;
+    default:
+      throw error;
+  }
+}
+
+/**
+ * Event listener for HTTP server "listening" event.
+ */
+
+function onListening() {
+  var addr = server.address();
+  var bind = typeof addr === 'string'
+    ? 'pipe ' + addr
+    : 'port ' + addr.port;
+  debug('Listening on ' + bind);
+}
